@@ -1,0 +1,911 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>Wanko Soba Typing EDM</title>
+  <style>
+    :root {
+      --bg1: #0b1020;
+      --bg2: #111827;
+      --accent: #fbbf24;
+      --accent-soft: #facc6b;
+      --accent-strong: #f59e0b;
+      --text-main: #f9fafb;
+      --text-sub: #9ca3af;
+      --error: #fb7185;
+      --good: #4ade80;
+      --bowl-red: #b91c1c;
+      --broth: #78350f;
+      --noodle: #fcd9a3;
+      --negi: #4ade80;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: radial-gradient(circle at top, var(--bg2), #020617 60%);
+      color: var(--text-main);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    canvas {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      display: block;
+    }
+
+    #paused-label {
+      position: fixed;
+      top: 50%; left: 50%;
+      transform: translate(-50%,-50%);
+      font-size: 40px;
+      color: var(--accent-soft);
+      text-shadow: 0 0 18px rgba(250,204,21,0.7);
+      display: none;
+      z-index: 30;
+    }
+
+    #ui {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 16px 20px;
+      z-index: 10;
+    }
+
+    #top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+    }
+
+    #game-title {
+      font-size: 26px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      background: linear-gradient(90deg,#fef3c7,var(--accent),#fef3c7);
+      -webkit-background-clip: text;
+      color: transparent;
+      text-shadow: 0 0 18px rgba(0,0,0,0.7);
+    }
+
+    #score-panel {
+      pointer-events:none;
+      padding: 8px 14px;
+      border-radius: 16px;
+      background: rgba(15,23,42,0.9);
+      border: 1px solid rgba(129,140,248,0.7);
+      backdrop-filter: blur(14px);
+      min-width: 220px;
+    }
+
+    #total-score-label {
+      font-size: 11px;
+      color: var(--text-sub);
+      letter-spacing: 0.14em;
+    }
+
+    #total-score {
+      font-size: 30px;
+      font-variant-numeric: tabular-nums;
+      text-align: right;
+      color: var(--accent-soft);
+    }
+
+    #mini-stats {
+      margin-top: 4px;
+      display:flex;
+      justify-content:space-between;
+      font-size: 11px;
+      color: var(--text-sub);
+    }
+
+    #mini-stats span.value {
+      color: var(--text-main);
+      font-variant-numeric: tabular-nums;
+    }
+
+    #center-area {
+      flex:1;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+    }
+
+    #current-word-box {
+      pointer-events:none;
+      padding: 16px 32px;
+      border-radius: 999px;
+      background: radial-gradient(circle at top left, rgba(251,191,36,0.22), rgba(15,23,42,0.97));
+      border: 1px solid rgba(129,140,248,0.7);
+      box-shadow: 0 0 40px rgba(0,0,0,0.8);
+      min-width: min(70vw, 720px);
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      gap:6px;
+    }
+
+    #current-jp {
+      font-size: clamp(40px, 7vw, 72px);
+      letter-spacing: 0.14em;
+      text-shadow: 0 0 12px rgba(0,0,0,0.9);
+    }
+
+    #current-romaji {
+      font-family: "SF Mono", Menlo, Monaco, Consolas, "Courier New", monospace;
+      font-size: clamp(16px,2vw,22px);
+    }
+
+    #current-romaji .correct { color: var(--good); }
+    #current-romaji .remaining { color: var(--text-main); }
+
+    #bottom-bar {
+      pointer-events:none;
+      display:flex;
+      flex-direction:column;
+      gap:4px;
+      font-size:13px;
+      color: var(--text-sub);
+      text-shadow:0 0 10px rgba(0,0,0,0.7);
+    }
+
+    #bottom-top-line {
+      display:flex;
+      align-items:center;
+      gap:10px;
+    }
+
+    #message.good { color: var(--good); }
+    #message.error { color: var(--error); }
+
+    button {
+      pointer-events:auto;
+      padding: 7px 18px;
+      border-radius: 999px;
+      border: 1px solid rgba(251,191,36,0.9);
+      background: radial-gradient(circle at 30% 0%, #fef9c3, var(--accent-strong));
+      color: #111827;
+      font-weight:700;
+      font-size: 13px;
+      letter-spacing:0.06em;
+      text-transform:uppercase;
+      cursor:pointer;
+    }
+
+    button:hover {
+      filter:brightness(1.07);
+      transform:translateY(-1px);
+      box-shadow:0 4px 14px rgba(0,0,0,0.6);
+    }
+
+    #result-overlay {
+      position:fixed;
+      inset:0;
+      display:none;
+      align-items:center;
+      justify-content:center;
+      background:rgba(3,7,18,0.95);
+      z-index:100;
+    }
+
+    #result-card {
+      padding: 28px 36px;
+      border-radius:20px;
+      background: radial-gradient(circle at top left, rgba(251,191,36,0.22), rgba(15,23,42,0.96));
+      border:1px solid rgba(251,191,36,0.8);
+      box-shadow:0 0 50px rgba(0,0,0,0.9);
+      text-align:center;
+      min-width:min(620px,90vw);
+    }
+
+    #result-score {
+      font-size:64px;
+      font-variant-numeric:tabular-nums;
+      margin:8px 0 16px;
+      color:var(--accent-soft);
+      text-shadow:0 0 22px rgba(250,204,21,0.8);
+    }
+
+    #result-stats {
+      display:flex;
+      justify-content:center;
+      gap:30px;
+      margin-bottom:18px;
+      font-size:14px;
+    }
+
+    #result-stats span.label {
+      display:block;
+      font-size:11px;
+      letter-spacing:0.14em;
+      color:var(--text-sub);
+    }
+
+    #result-stats span.value {
+      display:block;
+      font-size:20px;
+      font-variant-numeric:tabular-nums;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="game"></canvas>
+  <div id="paused-label">PAUSED</div>
+
+  <div id="ui">
+    <div id="top-bar">
+      <div>
+        <div id="game-title">WANKO SOBA TYPING</div>
+      </div>
+      <div id="score-panel">
+        <div id="total-score-label">TOTAL SCORE</div>
+        <div id="total-score">000000</div>
+        <div id="mini-stats">
+          <div>COMBO <span id="combo" class="value">0</span></div>
+          <div>MAX <span id="maxCombo" class="value">0</span></div>
+          <div>MISS 椀 <span id="miss" class="value">0</span></div>
+          <div>TIME <span id="time" class="value">60.0</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="center-area">
+      <div id="current-word-box">
+        <div id="current-jp">PRESS START</div>
+        <div id="current-romaji">
+          <span class="correct"></span><span class="remaining"></span>
+        </div>
+      </div>
+    </div>
+
+    <div id="bottom-bar">
+      <div id="bottom-top-line">
+        <button id="startButton">START / RESTART</button>
+        <button id="pauseButton">STOP</button>
+        <div id="message"></div>
+      </div>
+      <div id="hint">
+        ローマ字は <code>shi/si</code>, <code>cha/tya</code>, <code>tsu/tu</code> など柔軟対応 ｜ Backspaceで1文字削除 ｜ Escで入力クリア
+      </div>
+    </div>
+  </div>
+
+  <div id="result-overlay">
+    <div id="result-card">
+      <div style="letter-spacing:0.2em;font-size:22px;">RESULT</div>
+      <div id="result-score">000000</div>
+      <div id="result-stats">
+        <div><span class="label">MAX COMBO</span><span id="result-maxCombo" class="value">0</span></div>
+        <div><span class="label">MISS 椀</span><span id="result-miss" class="value">0</span></div>
+        <div><span class="label">CLEARED</span><span id="result-clears" class="value">0</span></div>
+      </div>
+      <button id="result-close">CLOSE</button>
+      <div style="margin-top:6px;font-size:12px;color:var(--text-sub);">
+        下の START ボタンでもう一度プレイできます
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /********** キャンバス **********/
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+    let W = window.innerWidth;
+    let H = window.innerHeight;
+    canvas.width = W;
+    canvas.height = H;
+    window.addEventListener("resize", () => {
+      W = window.innerWidth;
+      H = window.innerHeight;
+      canvas.width = W;
+      canvas.height = H;
+      draw();
+    });
+
+    /********** ローマ字エンジン (方式B) **********/
+    function generateRomajiGroups(jp){
+      const table = {
+        "しゃ":["sha","sya","shya"],
+        "しゅ":["shu","syu"],
+        "しょ":["sho","syo"],
+        "ちゃ":["cha","tya","chya"],
+        "ちゅ":["chu","tyu"],
+        "ちょ":["cho","tyo","chyo"],
+        "きゃ":["kya"],"きゅ":["kyu"],"きょ":["kyo"],
+        "にゃ":["nya"],"にゅ":["nyu"],"にょ":["nyo"],
+        "ひゃ":["hya"],"ひゅ":["hyu"],"ひょ":["hyo"],
+        "みゃ":["mya"],"みゅ":["myu"],"みょ":["myo"],
+        "りゃ":["rya"],"りゅ":["ryu"],"りょ":["ryo"],
+        "ぎゃ":["gya"],"ぎゅ":["gyu"],"ぎょ":["gyo"],
+        "じゃ":["ja","zya","jya"],
+        "じゅ":["ju","zyu","jyu"],
+        "じょ":["jo","zyo","jyo"],
+        "し":["shi","si","syi"],
+        "ち":["chi","ti","tyi"],
+        "つ":["tsu","tu"],
+        "じ":["ji","zi","jyi"],
+        "ふ":["fu","hu"],
+      };
+
+      const base = {
+        "あ":"a","い":"i","う":"u","え":"e","お":"o",
+        "か":"ka","き":"ki","く":"ku","け":"ke","こ":"ko",
+        "さ":"sa","す":"su","せ":"se","そ":"so",
+        "た":"ta","て":"te","と":"to",
+        "な":"na","に":"ni","ぬ":"nu","ね":"ne","の":"no",
+        "は":"ha","ひ":"hi","へ":"he","ほ":"ho",
+        "ま":"ma","み":"mi","む":"mu","め":"me","も":"mo",
+        "や":"ya","ゆ":"yu","よ":"yo",
+        "ら":"ra","り":"ri","る":"ru","れ":"re","ろ":"ro",
+        "わ":"wa","を":"wo","ん":"n",
+        "が":"ga","ぎ":"gi","ぐ":"gu","げ":"ge","ご":"go",
+        "ざ":"za","ず":"zu","ぜ":"ze","ぞ":"zo",
+        "だ":"da","で":"de","ど":"do",
+        "ば":"ba","び":"bi","ぶ":"bu","べ":"be","ぼ":"bo",
+        "ぱ":"pa","ぴ":"pi","ぷ":"pu","ぺ":"pe","ぽ":"po"
+      };
+
+      const groups = [];
+      for(let i=0;i<jp.length;){
+        if(i+1<jp.length){
+          const pair = jp[i] + jp[i+1];
+          if(table[pair]){
+            groups.push(table[pair]);
+            i+=2; continue;
+          }
+        }
+        if(table[jp[i]]){ groups.push(table[jp[i]]); i++; continue; }
+        if(base[jp[i]]) { groups.push([base[jp[i]]]); i++; continue; }
+        i++;
+      }
+      return groups;
+    }
+
+    function buildRomajiCombos(groups){
+      let list = [""];
+      for(const g of groups){
+        const next = [];
+        for(const base of list){
+          for(const r of g){
+            next.push(base + r);
+          }
+        }
+        list = next;
+      }
+      return list;
+    }
+
+    function isRomajiMatch(input, list){
+      const s = input.toLowerCase();
+      return list.some(r => r.startsWith(s));
+    }
+    function isRomajiComplete(input, list){
+      const s = input.toLowerCase();
+      return list.includes(s);
+    }
+
+    /********** 状態変数 **********/
+    let running = false;
+    let paused  = false;
+    let lastTs  = null;
+    let gameTime = 0;
+
+    let currentBowl = null;
+    let currentInput = "";
+    let effects = [];
+
+    let totalScore = 0;
+    let combo = 0;
+    let maxCombo = 0;
+    let miss = 0;
+    let clears = 0;
+
+    const GAME_DURATION = 60;
+    const BASE_SPEED    = 170;
+    const SPEED_PER_CLEAR = 12;
+
+    /********** 単語リスト（外部＋長い単語フィルター） **********/
+    const WORDS_URL =
+      "https://raw.githubusercontent.com/vbvss199/Language-Learning-decks/refs/heads/main/japanese/hiragana.json";
+
+    const WORDS_FALLBACK = [
+      "しゅんかんいどう","じんこうちのう","かいてんずし","ぎんがてつどう","ほうしゃせん",
+      "さいみんじゅつ","せかいせいふく","れきだいさいきょう","こうどうりょく",
+      "ぶんれつくんしょう","げきてきてんかい","じっせきほうこく",
+      "のうないかくめい","じょうほうつうしん","でんしきかいろ","じんるいそうぞう",
+      "しぼうほそく","こうそくどうろ","しんぴこうどう","さいこうこうりつ",
+      "ほしぞらのたび","まぼろしのしま","ぎんいろのつばさ","きんいろのゆめ"
+    ];
+
+    let WORDS = [];
+
+    async function loadWordList() {
+      try {
+        const res = await fetch(WORDS_URL);
+        const data = await res.json();
+        // 長めの単語だけフィルタ（ひらがな5文字以上＆ローマ字8文字以上）
+        const filtered = data.filter(d =>
+          typeof d.word === "string" &&
+          d.word.length >= 5 &&
+          typeof d.romanization === "string" &&
+          d.romanization.length >= 8
+        );
+        if (filtered.length > 0) {
+          WORDS = filtered.map(d => d.word);
+        } else {
+          WORDS = WORDS_FALLBACK.slice();
+        }
+      } catch (e) {
+        console.error("単語取得失敗。Fallbackを使用します。", e);
+        WORDS = WORDS_FALLBACK.slice();
+      }
+    }
+
+    /********** EDM 4つ打ち BGM **********/
+    let audioCtx = null;
+    let edmTimer = null;
+    let padOsc = null;
+    let padGain = null;
+
+    function ensureAudio() {
+      if (!audioCtx) {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return null;
+        audioCtx = new AC();
+      }
+      return audioCtx;
+    }
+
+    function startEDM(){
+      const ctxA = ensureAudio();
+      if (!ctxA) return;
+      if (edmTimer) return;
+
+      padOsc = ctxA.createOscillator();
+      padOsc.type = "sawtooth";
+      padGain = ctxA.createGain();
+      padGain.gain.value = 0.02;
+      padOsc.frequency.value = 220;
+      padOsc.connect(padGain).connect(ctxA.destination);
+      padOsc.start();
+
+      const BEAT_MS = 480; // 125bpmくらい
+
+      edmTimer = setInterval(() => {
+        const t = ctxA.currentTime;
+
+        // Kick
+        const kOsc = ctxA.createOscillator();
+        const kGain= ctxA.createGain();
+        kOsc.type="sine";
+        kOsc.frequency.setValueAtTime(120,t);
+        kOsc.frequency.exponentialRampToValueAtTime(45,t+0.12);
+        kGain.gain.setValueAtTime(1,t);
+        kGain.gain.exponentialRampToValueAtTime(0.001,t+0.14);
+        kOsc.connect(kGain).connect(ctxA.destination);
+        kOsc.start(t);
+        kOsc.stop(t+0.16);
+
+        // Hat
+        const noise = ctxA.createBufferSource();
+        const buf   = ctxA.createBuffer(1, ctxA.sampleRate*0.12, ctxA.sampleRate);
+        const data  = buf.getChannelData(0);
+        for(let i=0;i<data.length;i++){ data[i]=Math.random()*2-1; }
+        noise.buffer=buf;
+        const hp = ctxA.createBiquadFilter();
+        hp.type="highpass"; hp.frequency.value=8000;
+        const hGain = ctxA.createGain();
+        hGain.gain.setValueAtTime(0.35,t+0.12);
+        hGain.gain.exponentialRampToValueAtTime(0.001,t+0.2);
+        noise.connect(hp).connect(hGain).connect(ctxA.destination);
+        noise.start(t+0.12);
+        noise.stop(t+0.22);
+      }, BEAT_MS);
+    }
+
+    function stopEDM(){
+      if (edmTimer) { clearInterval(edmTimer); edmTimer=null; }
+      if (padOsc)   { padOsc.stop(); padOsc.disconnect(); padOsc=null; }
+      if (padGain)  { padGain.disconnect(); padGain=null; }
+    }
+
+    function playSuccessSound(){
+      const ctxA = ensureAudio(); if(!ctxA) return;
+      const t = ctxA.currentTime;
+      const osc = ctxA.createOscillator();
+      const gain= ctxA.createGain();
+      osc.type="triangle";
+      osc.frequency.setValueAtTime(880,t);
+      osc.frequency.linearRampToValueAtTime(1320,t+0.15);
+      gain.gain.setValueAtTime(0.3,t);
+      gain.gain.exponentialRampToValueAtTime(0.001,t+0.22);
+      osc.connect(gain).connect(ctxA.destination);
+      osc.start(t);
+      osc.stop(t+0.23);
+    }
+
+    function playFailSound(){
+      const ctxA = ensureAudio(); if(!ctxA) return;
+      const t = ctxA.currentTime;
+      const osc = ctxA.createOscillator();
+      const gain= ctxA.createGain();
+      osc.type="sawtooth";
+      osc.frequency.setValueAtTime(260,t);
+      osc.frequency.linearRampToValueAtTime(180,t+0.12);
+      gain.gain.setValueAtTime(0.25,t);
+      gain.gain.exponentialRampToValueAtTime(0.001,t+0.18);
+      osc.connect(gain).connect(ctxA.destination);
+      osc.start(t);
+      osc.stop(t+0.2);
+    }
+
+    /********** わんこそば椀生成 **********/
+    function createBowl(){
+      if (!WORDS.length) WORDS = WORDS_FALLBACK.slice();
+      const jp = WORDS[Math.floor(Math.random()*WORDS.length)];
+      const groups = generateRomajiGroups(jp);
+      const allRomaji = buildRomajiCombos(groups);
+      currentBowl = {
+        jp,
+        x: -200,
+        y: H * 0.62,
+        speed: BASE_SPEED + clears * SPEED_PER_CLEAR,
+        romajiAll: allRomaji
+      };
+      currentInput="";
+      updateCurrentWordDisplay();
+    }
+
+    /********** ゲーム制御 **********/
+    function resetGame(){
+      running=true; paused=false;
+      lastTs=null; gameTime=0;
+      totalScore=0; combo=0; maxCombo=0; miss=0; clears=0;
+      currentBowl=null; currentInput=""; effects=[];
+      document.getElementById("paused-label").style.display="none";
+      document.getElementById("result-overlay").style.display="none";
+      updateScoreUI();
+      startEDM();
+      createBowl();
+      requestAnimationFrame(loop);
+    }
+
+    function pauseGame(){
+      if(!running) return;
+      paused=true;
+      stopEDM();
+      document.getElementById("paused-label").style.display="block";
+    }
+
+    function resumeGame(){
+      if(!running) return;
+      paused=false;
+      document.getElementById("paused-label").style.display="none";
+      startEDM();
+      lastTs=null;
+      requestAnimationFrame(loop);
+    }
+
+    function endGame(){
+      running=false;
+      stopEDM();
+      document.getElementById("result-score").textContent =
+        totalScore.toString().padStart(6,"0");
+      document.getElementById("result-maxCombo").textContent = maxCombo;
+      document.getElementById("result-miss").textContent     = miss;
+      document.getElementById("result-clears").textContent   = clears;
+      document.getElementById("result-overlay").style.display="flex";
+    }
+
+    /********** 描画（テーブル＆お椀） **********/
+    function drawBackground(){
+      const g = ctx.createLinearGradient(0,0,0,H);
+      g.addColorStop(0,"#020617");
+      g.addColorStop(0.4,"#111827");
+      g.addColorStop(1,"#020617");
+      ctx.fillStyle = g;
+      ctx.fillRect(0,0,W,H);
+
+      const ty = H*0.7;
+      const th = Math.max(80,H*0.12);
+      const tg = ctx.createLinearGradient(0,ty-th/2,0,ty+th/2);
+      tg.addColorStop(0,"#78350f");
+      tg.addColorStop(0.4,"#92400e");
+      tg.addColorStop(1,"#451a03");
+      ctx.fillStyle=tg;
+      ctx.fillRect(0,ty-th/2,W,th);
+
+      ctx.strokeStyle="rgba(15,23,42,0.7)";
+      ctx.beginPath();
+      ctx.moveTo(0,ty-th/6);
+      ctx.lineTo(W,ty-th/6);
+      ctx.stroke();
+    }
+
+    function ellipsePath(x,y,rx,ry){
+      ctx.save();
+      ctx.beginPath();
+      ctx.translate(x,y);
+      ctx.scale(rx,ry);
+      ctx.arc(0,0,1,0,Math.PI*2);
+      ctx.restore();
+    }
+
+    function drawBowl(b){
+      const bw = Math.max(160, W*0.15);
+      const bh = bw*0.55;
+
+      // 影
+      ctx.fillStyle="rgba(0,0,0,0.5)";
+      ellipsePath(b.x,b.y + bh*0.15,bw/2.3,bh/4.3);
+      ctx.fill();
+
+      // 椀本体
+      const grad = ctx.createLinearGradient(b.x,b.y-bh*0.3,b.x,b.y+bh*0.3);
+      grad.addColorStop(0,"#7f1d1d");
+      grad.addColorStop(0.4,"#b91c1c");
+      grad.addColorStop(1,"#7f1d1d");
+      ctx.fillStyle=grad;
+      ellipsePath(b.x,b.y,bw/2,bh/2.2);
+      ctx.fill();
+
+      // 上面(汁)
+      ctx.fillStyle="#451a03";
+      ellipsePath(b.x,b.y-bh*0.18,bw/2.3,bh/4);
+      ctx.fill();
+
+      // そば（麺）
+      ctx.strokeStyle= "#fcd9a3";
+      ctx.lineWidth=2;
+      const noodleCount=5;
+      for(let i=0;i<noodleCount;i++){
+        const offset = (i - (noodleCount-1)/2)*6;
+        ctx.beginPath();
+        ctx.moveTo(b.x - bw/3 + offset, b.y - bh*0.22);
+        ctx.bezierCurveTo(
+          b.x - bw/6 + offset, b.y - bh*0.30,
+          b.x + bw/6 + offset, b.y - bh*0.12,
+          b.x + bw/3 + offset*0.6, b.y - bh*0.18
+        );
+        ctx.stroke();
+      }
+
+      // ネギ
+      ctx.fillStyle="#4ade80";
+      for(let i=0;i<6;i++){
+        const nx = b.x + (Math.random()*2-1)*bw*0.18;
+        const ny = b.y - bh*0.2 + (Math.random()*2-1)*bh*0.05;
+        ctx.beginPath();
+        ctx.arc(nx,ny,3,0,Math.PI*2);
+        ctx.fill();
+      }
+
+      // 湯気
+      ctx.strokeStyle="rgba(249,250,251,0.75)";
+      ctx.lineWidth=1.5;
+      for(let i=-1;i<=1;i++){
+        ctx.beginPath();
+        const baseX = b.x + i*18;
+        const baseY = b.y - bh*0.35;
+        ctx.moveTo(baseX,baseY);
+        ctx.bezierCurveTo(
+          baseX-8, baseY-24,
+          baseX+8, baseY-40,
+          baseX,   baseY-60
+        );
+        ctx.stroke();
+      }
+
+      // 単語（椀の上）
+      ctx.font=`bold ${Math.max(34,W*0.03)}px system-ui`;
+      ctx.textAlign="center";
+      ctx.textBaseline="bottom";
+      ctx.fillStyle="#f9fafb";
+      ctx.shadowColor="rgba(0,0,0,0.85)";
+      ctx.shadowBlur=12;
+      ctx.fillText(b.jp, b.x, b.y - bh*0.7);
+      ctx.shadowBlur=0;
+    }
+
+    function drawEffects(){
+      for(const fx of effects){
+        const t = fx.life/fx.maxLife;
+        if(fx.type==="ring"){
+          ctx.save();
+          ctx.beginPath();
+          ctx.strokeStyle=`rgba(250,204,21,${1-t})`;
+          ctx.lineWidth = 3 - t*2;
+          ctx.arc(fx.x,fx.y-10,28 + t*90,0,Math.PI*2);
+          ctx.stroke();
+          ctx.restore();
+        } else if(fx.type==="scoreText"){
+          ctx.save();
+          ctx.font=`bold ${Math.max(26,W*0.022)}px system-ui`;
+          ctx.textAlign="center";
+          ctx.fillStyle=fx.color;
+          ctx.globalAlpha = 1-t;
+          ctx.fillText(fx.text, fx.x, fx.y - 40 - t*30);
+          ctx.restore();
+        }
+      }
+    }
+
+    function draw(){
+      ctx.clearRect(0,0,W,H);
+      drawBackground();
+      if(currentBowl) drawBowl(currentBowl);
+      drawEffects();
+    }
+
+    /********** 入力まわり **********/
+    function updateCurrentWordDisplay(){
+      const jpEl = document.getElementById("current-jp");
+      const correctEl = document.querySelector("#current-romaji .correct");
+      const remainEl  = document.querySelector("#current-romaji .remaining");
+
+      if(!currentBowl){
+        jpEl.textContent = running ? "..." : "PRESS START";
+        correctEl.textContent = "";
+        remainEl.textContent  = "";
+        return;
+      }
+
+      jpEl.textContent = currentBowl.jp;
+      const list = currentBowl.romajiAll;
+      const inp  = currentInput.toLowerCase();
+
+      let candidate = "";
+      for(const r of list){
+        if(r.startsWith(inp)){ candidate = r; break; }
+      }
+
+      correctEl.textContent = inp;
+      remainEl.textContent  = candidate.slice(inp.length);
+    }
+
+    function updateScoreUI(){
+      document.getElementById("total-score").textContent =
+        totalScore.toString().padStart(6,"0");
+      document.getElementById("combo").textContent   = combo;
+      document.getElementById("maxCombo").textContent= maxCombo;
+      document.getElementById("miss").textContent    = miss;
+    }
+
+    function spawnRing(x,y){
+      effects.push({type:"ring",x,y,life:0,maxLife:0.4});
+    }
+    function spawnScore(x,y,text,color){
+      effects.push({type:"scoreText",x,y,text,color,life:0,maxLife:0.7});
+    }
+
+    function handleTyping(beforeInput){
+      const list = currentBowl.romajiAll;
+      const inp  = currentInput.toLowerCase();
+      const msgEl= document.getElementById("message");
+
+      if(!isRomajiMatch(inp,list)){
+        currentInput = beforeInput;
+        playFailSound();
+        msgEl.textContent="ミスタイプ";
+        msgEl.className="error";
+        return;
+      }
+      msgEl.textContent="";
+      msgEl.className="";
+
+      if(isRomajiComplete(inp,list)){
+        const gained = 140 + combo*20; // 長い単語なのでちょい高め
+        totalScore += gained;
+        combo++;
+        clears++;
+        maxCombo = Math.max(maxCombo,combo);
+        updateScoreUI();
+
+        msgEl.textContent = `「${currentBowl.jp}」 CLEAR! +${gained}`;
+        msgEl.className   = "good";
+
+        spawnRing(currentBowl.x,currentBowl.y);
+        spawnScore(currentBowl.x,currentBowl.y-40,`+${gained}`,"#facc15");
+        playSuccessSound();
+
+        currentBowl=null;
+        currentInput="";
+        createBowl();
+      }
+    }
+
+    window.addEventListener("keydown",(e)=>{
+      if(!running || paused) return;
+
+      if(e.key === "Backspace"){
+        e.preventDefault();
+        currentInput = currentInput.slice(0,-1);
+        updateCurrentWordDisplay();
+        return;
+      }
+      if(e.key === "Escape"){
+        currentInput="";
+        updateCurrentWordDisplay();
+        return;
+      }
+      if(e.key.length===1 && /[a-zA-Z]/.test(e.key)){
+        const before=currentInput;
+        currentInput+=e.key.toLowerCase();
+        handleTyping(before);
+        updateCurrentWordDisplay();
+      }
+    });
+
+    /********** メインループ **********/
+    function loop(ts){
+      if(!running || paused) return;
+      if(lastTs===null) lastTs = ts;
+      const dt = (ts-lastTs)/1000;
+      lastTs = ts;
+
+      gameTime += dt;
+      const remain = Math.max(0, GAME_DURATION - gameTime);
+      document.getElementById("time").textContent = remain.toFixed(1);
+      if(remain <= 0){
+        endGame();
+        return;
+      }
+
+      if(currentBowl){
+        const sf = 1 + Math.min(1,clears/20)*0.7;
+        currentBowl.x += currentBowl.speed * sf * dt;
+        if(currentBowl.x > W + 200){
+          miss++; combo=0;
+          updateScoreUI();
+          spawnRing(currentBowl.x-80,currentBowl.y);
+          currentBowl=null;
+          currentInput="";
+          createBowl();
+        }
+      }
+
+      for(let i=effects.length-1;i>=0;i--){
+        effects[i].life+=dt;
+        if(effects[i].life>=effects[i].maxLife) effects.splice(i,1);
+      }
+
+      draw();
+      requestAnimationFrame(loop);
+    }
+
+    /********** ボタン **********/
+    document.getElementById("startButton").addEventListener("click", () => {
+      resetGame();
+    });
+
+    document.getElementById("pauseButton").addEventListener("click", () => {
+      if(!running) return;
+      if(!paused){
+        pauseGame();
+        document.getElementById("pauseButton").textContent="RESUME";
+      } else {
+        resumeGame();
+        document.getElementById("pauseButton").textContent="STOP";
+      }
+    });
+
+    document.getElementById("result-close").addEventListener("click", () => {
+      document.getElementById("result-overlay").style.display="none";
+    });
+
+    /********** 初期化 **********/
+    (async () => {
+      await loadWordList();  // ここで長めの単語を大量ロード
+      draw();
+    })();
+  </script>
+</body>
+</html>
